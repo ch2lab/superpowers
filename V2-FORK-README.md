@@ -23,7 +23,7 @@ upstream content, so rebasing onto upstream stays nearly conflict-free.
 // V2-only machine → plugins node:
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugins": ["superpowers@git+https://github.com/ch2lab/superpowers.git#v2.2"]
+  "plugins": ["superpowers@git+https://github.com/ch2lab/superpowers.git#v2.3"]
 }
 ```
 
@@ -32,7 +32,7 @@ upstream content, so rebasing onto upstream stays nearly conflict-free.
 // versions; the plugin carries both implementations):
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["superpowers@git+https://github.com/ch2lab/superpowers.git#v2.2"]
+  "plugin": ["superpowers@git+https://github.com/ch2lab/superpowers.git#v2.3"]
 }
 ```
 
