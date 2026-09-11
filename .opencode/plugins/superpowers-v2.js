@@ -8,9 +8,14 @@
  *
  *   1. Register all skills from the co-located skills/ directory via
  *      ctx.skill.transform (V2 native skill discovery — no config edits needed).
- *   2. Inject the using-superpowers bootstrap into user prompts. Self-healing:
- *      if the session context no longer carries the bootstrap (e.g. after
- *      compaction), it is re-injected on the next prompt.
+ *   2. Inject the using-superpowers bootstrap at request time via the
+ *      "context" session hook. Like the V1 plugin, this is NOT persisted: the
+ *      outgoing model request carries the bootstrap in its system instructions,
+ *      but the conversation history is never modified, so nothing appears in
+ *      the TUI/session log and there is no visible mid-session injection.
+ *      Because the hook runs before every agent-loop model call, it also
+ *      self-heals: if the bootstrap disappears from context (e.g. after
+ *      compaction), the next model call silently carries it again.
  *
  * Fork-local addition: it only exists while upstream has no V2 plugin. If
  * upstream ships one, delete this file and restore package.json `main` to the
@@ -116,23 +121,23 @@ export default {
       console.warn(`[superpowers-v2] fallback: add "skills": ["${SKILLS_DIR}"] to opencode.jsonc`);
     }
 
-    // 2) Bootstrap injection with self-healing
+    // 2) Bootstrap injection — request-time, non-persistent (V1-equivalent)
     const bootstrap = getBootstrap();
     if (!bootstrap) {
       console.warn('[superpowers-v2] bootstrap unavailable (using-superpowers/SKILL.md missing); injection disabled');
       return;
     }
-    await ctx.session.hook('prompt', async (event) => {
+    // Runs before every agent-loop model call; the edit applies only to the
+    // outgoing request, not to persisted history. Skip when the session
+    // already carries the bootstrap in its messages (e.g. sessions created
+    // by the legacy prompt-hook bridge, which persisted it into the first
+    // user message) to avoid a double dose.
+    await ctx.session.hook('context', (event) => {
       try {
-        const sid = event.sessionID;
-        if (!sid) return;
-        const messages = await ctx.session.context({ sessionID: sid });
-        if (messages.length && messages.some((m) => JSON.stringify(m).includes(MARKER))) return;
-        if (typeof event.prompt?.text === 'string') {
-          event.prompt.text = bootstrap + '\n\n' + event.prompt.text;
-        }
+        if (event.messages.some((m) => JSON.stringify(m).includes(MARKER))) return;
+        event.system.push({ text: bootstrap });
       } catch {
-        // never break the prompt path over bootstrap injection
+        // never break a model call over bootstrap injection
       }
     });
   },

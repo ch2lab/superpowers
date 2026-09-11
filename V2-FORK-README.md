@@ -8,7 +8,7 @@ This fork changes exactly three files relative to upstream `dev`:
 
 | File | Change |
 |---|---|
-| `.opencode/plugins/superpowers-v2.js` | new — V2 plugin: registers `skills/` via `ctx.skill.transform`, injects the `using-superpowers` bootstrap via `ctx.session.hook('prompt')` (self-healing after compaction) |
+| `.opencode/plugins/superpowers-v2.js` | new — V2 plugin: registers `skills/` via `ctx.skill.transform`, injects the `using-superpowers` bootstrap at request time via `ctx.session.hook('context')` — non-persistent (invisible in conversation history, V1-equivalent) and self-healing after compaction |
 | `package.json` | `main` → `.opencode/plugins/superpowers-v2.js` |
 | `V2-FORK-README.md` | new — this file |
 
