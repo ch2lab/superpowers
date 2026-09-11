@@ -1,10 +1,15 @@
 /**
- * Superpowers plugin for OpenCode V2.
+ * Superpowers plugin for OpenCode — dual V1/V2.
  *
- * The V1 plugin (superpowers.js) uses the legacy V1 plugin API (named export +
- * experimental.chat.messages.transform), which OpenCode 2 refuses to load
- * ("Plugin must export a default definition with an id and an effect or setup
- * function"). This file is the V2 equivalent and does the same two jobs:
+ * The upstream V1 plugin (superpowers.js, named export + legacy hooks) loads
+ * only under OpenCode V1; V2 refuses it ("Plugin must export a default
+ * definition with an id and an effect or setup function"). This file is a
+ * single default export carrying both implementations:
+ *   - setup(ctx) — OpenCode V2
+ *   - server()   — OpenCode V1 (object form, >= 1.18.29)
+ * Each runtime uses its own side; the other is ignored.
+ *
+ * The V2 side does two jobs:
  *
  *   1. Register all skills from the co-located skills/ directory via
  *      ctx.skill.transform (V2 native skill discovery — no config edits needed).
@@ -140,5 +145,39 @@ export default {
         // never break a model call over bootstrap injection
       }
     });
+  },
+
+  // ——— OpenCode V1 (object form, >= 1.18.29) ———
+  // Mirrors the upstream V1 plugin: register the co-located skills directory
+  // via the "config" hook and inject the bootstrap into the first user
+  // message via "experimental.chat.messages.transform" — a request-time
+  // transform (not persisted; re-applied on every agent step, guarded).
+  async server() {
+    if (!fs.existsSync(SKILLS_DIR)) {
+      console.warn('[superpowers-v2] skills directory missing; V1 support disabled');
+      return {};
+    }
+    const bootstrap = getBootstrap();
+    if (!bootstrap) {
+      console.warn('[superpowers-v2] bootstrap unavailable; V1 injection disabled');
+      return {};
+    }
+    return {
+      config: async (config) => {
+        config.skills = config.skills || {};
+        config.skills.paths = config.skills.paths || [];
+        if (!config.skills.paths.includes(SKILLS_DIR)) {
+          config.skills.paths.push(SKILLS_DIR);
+        }
+      },
+      'experimental.chat.messages.transform': async (_input, output) => {
+        if (!output.messages?.length) return;
+        const firstUser = output.messages.find(m => m.info?.role === 'user');
+        if (!firstUser || !firstUser.parts?.length) return;
+        if (firstUser.parts.some(p => p.type === 'text' && p.text.includes('EXTREMELY_IMPORTANT'))) return;
+        const ref = firstUser.parts[0];
+        firstUser.parts.unshift({ ...ref, type: 'text', text: bootstrap });
+      },
+    };
   },
 };

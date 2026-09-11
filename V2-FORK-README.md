@@ -8,7 +8,7 @@ This fork changes exactly three files relative to upstream `dev`:
 
 | File | Change |
 |---|---|
-| `.opencode/plugins/superpowers-v2.js` | new — V2 plugin: registers `skills/` via `ctx.skill.transform`, injects the `using-superpowers` bootstrap at request time via `ctx.session.hook('context')` — non-persistent (invisible in conversation history, V1-equivalent) and self-healing after compaction |
+| `.opencode/plugins/superpowers-v2.js` | new — dual V1/V2 plugin: V2 side registers `skills/` via `ctx.skill.transform` + request-time bootstrap via `ctx.session.hook('context')` (non-persistent, invisible in history, self-heals after compaction); V1 side (object form `server()`, >= 1.18.29) mirrors the upstream V1 plugin (`config` hook + `messages.transform`) |
 | `package.json` | `main` → `.opencode/plugins/superpowers-v2.js` |
 | `V2-FORK-README.md` | new — this file |
 
@@ -20,11 +20,19 @@ upstream content, so rebasing onto upstream stays nearly conflict-free.
 `opencode.jsonc` (global `~/.config/opencode/opencode.jsonc` or project-level):
 
 ```jsonc
+// V2-only machine → plugins node:
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugins": [
-    "superpowers@git+https://github.com/ch2lab/superpowers.git#main"
-  ]
+  "plugins": ["superpowers@git+https://github.com/ch2lab/superpowers.git#v2.2"]
+}
+```
+
+```jsonc
+// Machine running BOTH V1 + V2 (shared config) → plugin node (read by both
+// versions; the plugin carries both implementations):
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["superpowers@git+https://github.com/ch2lab/superpowers.git#v2.2"]
 }
 ```
 
