@@ -140,7 +140,7 @@ export default {
     await ctx.session.hook('context', (event) => {
       try {
         if (event.messages.some((m) => JSON.stringify(m).includes(MARKER))) return;
-        event.system.push({ text: bootstrap });
+        event.system.push({ type: 'text', text: bootstrap });
       } catch {
         // never break a model call over bootstrap injection
       }
