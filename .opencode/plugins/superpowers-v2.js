@@ -146,20 +146,35 @@ export default {
       }
     });
 
-    // Mirror the injection into the compaction (summarization) call. The
-    // compaction request shares its prefix with the previous primary request
-    // only if its system parts match byte-for-byte; without this, the two
-    // token streams diverge at the bootstrap position and the compaction call
-    // re-prefills the entire history instead of hitting the prefix cache up
-    // to the history. The summarizer is instructed by opencode to omit
-    // setup-style content, and the post-compaction request re-carries the
-    // bootstrap via the context hook, so nothing is lost.
+    // Mirror the primary-request shaping into the compaction (summarization)
+    // call so its token stream stays aligned with the previous primary
+    // request and the provider's prefix cache can be reused:
+    //
+    //   1. system parts: push the same bootstrap the context hook adds.
+    //      Without this the streams diverge at the bootstrap position and
+    //      the compaction call re-prefills tools + full history.
+    //   2. tools: opencode's built-in patch tool registers its filtering in
+    //      a "context" hook only (delete patch for non-GPT models, or
+    //      delete edit/write for GPT models), so compaction requests keep
+    //      a different tool set and diverge at the tools block. Mirror the
+    //      same filtering here.
+    //
+    // The summarizer is instructed by opencode to omit setup-style content,
+    // and the post-compaction request re-carries the bootstrap via the
+    // context hook, so nothing is lost.
     await ctx.session.hook('compaction', (event) => {
       try {
+        const modelID = String(event.model?.id ?? '');
+        if (modelID.includes('gpt-') && !modelID.includes('oss') && !modelID.includes('gpt-4')) {
+          delete event.tools.edit;
+          delete event.tools.write;
+        } else {
+          delete event.tools.patch;
+        }
         if (event.messages.some((m) => JSON.stringify(m).includes(MARKER))) return;
         event.system.push({ type: 'text', text: bootstrap });
       } catch {
-        // never break compaction over bootstrap injection
+        // never break compaction over prefix alignment
       }
     });
   },
