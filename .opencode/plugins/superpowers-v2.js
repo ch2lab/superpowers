@@ -146,22 +146,39 @@ export default {
       }
     });
 
-    // Mirror the primary-request shaping into the compaction (summarization)
-    // call so its token stream stays aligned with the previous primary
-    // request and the provider's prefix cache can be reused:
+    // ——— prefix-cache alignment for the compaction (summarization) call ———
+    // The compaction request shares its token stream with the previous
+    // primary request only if system, tools and history match exactly.
+    // Several built-ins shape the primary request in "context" hooks that
+    // never run for compaction (our bootstrap push, the patch tool's
+    // filtering, the worktree session-move sentence, ...), so the streams
+    // diverge early and the compaction call re-prefills everything.
     //
-    //   1. system parts: push the same bootstrap the context hook adds.
-    //      Without this the streams diverge at the bootstrap position and
-    //      the compaction call re-prefills tools + full history.
-    //   2. tools: opencode's built-in patch tool registers its filtering in
-    //      a "context" hook only (delete patch for non-GPT models, or
-    //      delete edit/write for GPT models), so compaction requests keep
-    //      a different tool set and diverge at the tools block. Mirror the
-    //      same filtering here.
-    //
-    // The summarizer is instructed by opencode to omit setup-style content,
-    // and the post-compaction request re-carries the bootstrap via the
-    // context hook, so nothing is lost.
+    // Strategy: capture the fully-rendered system prompt of every primary
+    // request (observed in the http.request hook, i.e. after ALL context
+    // hooks have run) and replay it verbatim into the compaction request.
+    // Replay is robust to any present or future per-context injections.
+    // Also mirror the built-in patch tool's tool filtering, which acts on
+    // the tools[] block (not the system text).
+    const capturedSystem = new Map(); // sessionID -> [system text(s)]
+    await ctx.session.hook('http.request', async (event) => {
+      try {
+        if (event.kind !== 'primary') return;
+        const body = await event.request.clone().text();
+        const j = JSON.parse(body);
+        const texts = [];
+        for (const m of j.messages || []) {
+          if (m.role !== 'system') continue;
+          texts.push(typeof m.content === 'string' ? m.content : (m.content || []).map((p) => p.text || '').join(''));
+        }
+        if (texts.length) {
+          capturedSystem.set(String(event.sessionID), texts);
+          if (capturedSystem.size > 100) capturedSystem.delete(capturedSystem.keys().next().value);
+        }
+      } catch {
+        // capture must never break a model call
+      }
+    });
     await ctx.session.hook('compaction', (event) => {
       try {
         const modelID = String(event.model?.id ?? '');
@@ -171,6 +188,14 @@ export default {
         } else {
           delete event.tools.patch;
         }
+        const sysTexts = capturedSystem.get(String(event.sessionID));
+        if (sysTexts && sysTexts.length) {
+          event.system.length = 0;
+          for (const t of sysTexts) event.system.push({ type: 'text', text: t });
+          return;
+        }
+        // No primary request observed yet in this service: fall back to a
+        // plain bootstrap push (same as the context hook).
         if (event.messages.some((m) => JSON.stringify(m).includes(MARKER))) return;
         event.system.push({ type: 'text', text: bootstrap });
       } catch {
