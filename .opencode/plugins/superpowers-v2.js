@@ -145,6 +145,23 @@ export default {
         // never break a model call over bootstrap injection
       }
     });
+
+    // Mirror the injection into the compaction (summarization) call. The
+    // compaction request shares its prefix with the previous primary request
+    // only if its system parts match byte-for-byte; without this, the two
+    // token streams diverge at the bootstrap position and the compaction call
+    // re-prefills the entire history instead of hitting the prefix cache up
+    // to the history. The summarizer is instructed by opencode to omit
+    // setup-style content, and the post-compaction request re-carries the
+    // bootstrap via the context hook, so nothing is lost.
+    await ctx.session.hook('compaction', (event) => {
+      try {
+        if (event.messages.some((m) => JSON.stringify(m).includes(MARKER))) return;
+        event.system.push({ type: 'text', text: bootstrap });
+      } catch {
+        // never break compaction over bootstrap injection
+      }
+    });
   },
 
   // ——— OpenCode V1 (object form, >= 1.18.29) ———
