@@ -8,7 +8,7 @@ This fork changes exactly three files relative to upstream `dev`:
 
 | File | Change |
 |---|---|
-| `.opencode/plugins/superpowers-v2.js` | new — dual V1/V2 plugin: V2 side registers `skills/` via `ctx.skill.transform` + request-time bootstrap via `ctx.session.hook('context')` (non-persistent, invisible in history, self-heals after compaction); V1 side (object form `server()`, >= 1.18.29) mirrors the upstream V1 plugin (`config` hook + `messages.transform`) |
+| `.opencode/plugins/superpowers-v2.js` | new — dual V1/V2 plugin: V2 side registers `skills/` via `ctx.skill.transform` + request-time bootstrap via `ctx.session.hook('context')` (non-persistent, invisible in history, self-heals after compaction) + compaction-request prefix alignment (replays the last primary request's final system and mirrors built-in tool filtering, so compaction reuses the provider's prompt cache); V1 side (object form `server()`, >= 1.18.29) mirrors the upstream V1 plugin (`config` hook + `messages.transform`) |
 | `package.json` | `main` → `.opencode/plugins/superpowers-v2.js` |
 | `V2-FORK-README.md` | new — this file |
 
@@ -23,7 +23,7 @@ upstream content, so rebasing onto upstream stays nearly conflict-free.
 // V2-only machine → plugins node:
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugins": ["superpowers@git+https://github.com/ch2lab/superpowers.git#v2.3"]
+  "plugins": ["superpowers@git+https://github.com/ch2lab/superpowers.git#v2.4"]
 }
 ```
 
@@ -32,7 +32,7 @@ upstream content, so rebasing onto upstream stays nearly conflict-free.
 // versions; the plugin carries both implementations):
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["superpowers@git+https://github.com/ch2lab/superpowers.git#v2.3"]
+  "plugin": ["superpowers@git+https://github.com/ch2lab/superpowers.git#v2.4"]
 }
 ```
 
